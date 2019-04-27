@@ -8,6 +8,7 @@ import datetime as dt
 
 #%%
 class task:
+
     def __init__(self, tID, arrivalTime, burstTime, tasksPriority, distance, areaID):
         # arrivalTime is a datetime.datetime object
         # burstTime is a datetime.timedelta object
@@ -38,11 +39,12 @@ class task:
         self.processorID = processorID 
     
     def getProcessorInfo(self):
-        return f'tID: {self.tID}; startTime: {self.startTime}; endTime: {self.completionTime}; turnaroundTime: {self.turnaroundTime}; waitingTime: {self.waitingTime}; proc: {self.processorID}'
+        return f'tID: {self.tID}; startTime: {self.startTime}; completionTime: {self.completionTime}; turnaroundTime: {self.turnaroundTime}; waitingTime: {self.waitingTime}; proc: {self.processorID}'
 
 
 #%%
-#sorted(key=lambda x:x.whatever)
+# mimics the default sorted functionality when used with a key
+# sorted(list, key=lambda x:x.whatever)
 def taskSort_helper(tasks, key):
     # Takes a list of tasks and a function key
     # Returns a Tuple of Lists of Tasks
@@ -60,13 +62,14 @@ def taskSort_helper(tasks, key):
             equal.append(x)
         elif key(x) > pivot:
             greater.append(x)
-    # tuple[0] is less than the pivot, tuple[1] is equal (pivot/tasks[0] will always go here), tuple[2] is greater
+    # tuple[0] is all items less than the pivot, tuple[1] is equal (pivot/tasks[0] will always go here), tuple[2] is greater
     return (less, equal, greater)
 
 
 #%%
 def taskSort(tasks):
     # tasks must be a list of task objects
+    # Returns list of tasks in specified sorted order 
     prioTuple = ([],[],[])
     distTuple = ([],[],[])
     burstTuple = ([],[],[])
@@ -121,9 +124,9 @@ def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount, processorRe
     # taskList is a list of task objects needed to be sorted
     # rescueStartTime is a datetime.time object meaning the time 
     # processorCount is an integer
-    # ProcessorReset Time represents ProcessorPrepTime, but I don't entirely understand what it's purpose is.
+    # ProcessorResetTime represents ProcessorPrepTime, but I don't entirely understand what it's purpose is.
     # My best guess and how I am impementing it is that each processor needs 30 minutes(defualt) to 'prep'
-    # As that preptime is unrelated to the acutal processes completing, the task object doesnt get it
+    # As that preptime is unrelated to the acutal processes completing, the task object doesnt have knowledge of it, and only the processorTime dict sees its effects
     
     # Sort Tasks in  based by Priority
     sortedTaskList = taskSort(taskList)
