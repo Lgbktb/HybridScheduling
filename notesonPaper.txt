@@ -1,0 +1,20 @@
+Grammar! - Nothing was hard to understand, there were just tense and plural issues
+
+Tweet Categories:
+    1:Rescue Needed
+    2:DECW (Disabled, Elderly, Children, Women)
+    3:Water Needed
+    4:Injured
+    5:Sick
+    6:Flooded ? - Do you want general or specific categories - I think the answer is 'specific', but based on results, flooding is the only specific cat. with enough reliable results
+
+Word Cloud had strange things specific to individual events (harveyrescue, houstonpolice)
+    -I'm sure the important information is accurate, just seems like there may need to be more training 
+
+Origninally had some questions on how time determination was accomplished, but it seems already very well thought out. 
+
+Grouping Within 2 Miles? - What about cascading effects?
+    -Do you mean that 2 mile areas are set up and events occur within them
+    -Or that 1 event and another event within 2 miles will be treated together
+        -If this, then what if event A is 2 miles away from event B, but event B is 2 miles away from event C, but 4 miles from A 
+        -The group could travel from A to B to C within 2 miles, but not directly from A to C 
