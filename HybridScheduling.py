@@ -31,13 +31,13 @@ class Task:
 
         #startTime is datetime
         self.startTime = startTime
+        #Completion Time is datetime
+        self.completionTime = self.startTime + self.burstTime
         #waitingTime is timedelta
         self.waitingTime = self.startTime - self.arrivalTime
         #turnaroundTime is timedelta
-        self.turnaroundTime = self.waitingTime + self.burstTime
-        #Completion Time is datetime
-        self.completionTime = self.arrivalTime + self.turnaroundTime
-        #processorID
+        self.turnaroundTime = self.completionTime - self.arrivalTime
+                #processorID
         self.processorID = processorID 
     
     def getProcessorInfo(self):
@@ -66,7 +66,8 @@ def taskSort_helper(tasks, key):
     less = []
     equal = []
     greater = []
-    
+    #print("helper: ")
+    #print(tasks)
     pivot = key(tasks[0])
     for x in tasks:
         if key(x) < pivot:
@@ -89,6 +90,7 @@ def taskSort(tasks):
     arrivalTuple = ([],[],[])
     trueEqual = []
     # Step 1: Sort by priority (high to low)
+
     if len(tasks) > 1:
         prioTuple = taskSort_helper(tasks, lambda x:x.tasksPriority)
         # Step 2: If same priority, sort by distance (low to high)
@@ -141,7 +143,7 @@ def areaSort(areas):
             if len(distTuple[1]) > 1: # Length of equal Distance Items
                 tasksTuple = taskSort_helper(distTuple[1], lambda x:len(x.tasks))
                 # Step 7: If same number of tasks, sort by total burst time (low to high)
-                if len(distTuple[1]) > 1: # Length of equal BurstTime items
+                if len(burstTuple[1]) > 1: # Length of equal BurstTime items
                     burstTuple = taskSort_helper(burstTuple[1], lambda x:x.arrivalTime)
                     trueEqual = burstTuple[1]
                 else:
@@ -176,23 +178,6 @@ def soonestTime(processorTime):
 
 
 #%%
-def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount):
-    # taskList is a list of task objects needed to be sorted
-    # rescueStartTime is a datetime.time object meaning the time 
-    # processorCount is an integer
-    # ProcessorResetTime represents ProcessorPrepTime, but I don't entirely understand what it's purpose is.
-    # My best guess and how I am impementing it is that each processor needs 30 minutes(defualt) to 'prep'
-    # As that preptime is unrelated to the acutal processes completing, the task object doesnt have knowledge of it, and only the processorTime dict sees its effects
-    
-    # Sort Tasks in  based by Priority
-    sortedTaskList = taskSort(taskList)
-    # Schedule processors
-    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount )
-    return sortedTaskList
-    
-
-
-#%%
 
 def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30), grouping=False):
     
@@ -207,24 +192,25 @@ def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime
     totalTurnaroundTime = dt.timedelta(0)
     prevTask = ''
     for task in sortedTaskList:
+        # Update time for new tasks
+        if prevTask != '':
+            if grouping and task.areaID == prevTask.areaID:
+                # If there is grouping, and the previous task was in the same group, we don't need prep/reset time
+                # Do we need the 'if grouping?', if they are in the same group, then no reset time should be required, no matter what
+                processorTime[prevTask.processorID] = prevTask.completionTime
+            else: # The next task requires reset time 
+                processorTime[prevTask.processorID] = prevTask.completionTime+processorResetTime
+
         # i represents the processor that will act the soonest
         i = soonestTime(processorTime)
         
-        # Warning: Terrible code practice ahead
-        if grouping and prevTask != '':
-            if prevTask.areaID == task.areaID:
-                # If there is grouping, and the previous task was in the same group, we don't need prep/reset time
-                processorTime[i] -= processorResetTime 
-                i = prevTask.areaID
-                
         # Determines start time, either as soon as possible or as soon as task arrives
+        # Broken now
         #timeUsed = processorTime[i] if processorTime[i] > task.arrivalTime else task.arrivalTime
         task.setProcessor(i, processorTime[i])
-        
-        processorTime[i] = task.completionTime+processorResetTime
-       
-        print("task: "+str(task.tID) + "; proc: " + str(i))
-        print(processorTime)
+
+        #print("task: "+str(task.tID) + "; proc: " + str(i))
+        #print(processorTime)
     
         # Calculate totalWaitingTime
         totalWaitingTime += task.waitingTime 
@@ -244,17 +230,20 @@ def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime
 
 
 #%%
-
-
-
-#%%
-def hybridPsudo(taskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30)):
-    # 1: Group base on Area ID.
-    # 2: Calculate averaage priority of each area group (avgPriority = totalPriority/numberofTasks)
-    # 3: combine the burstTime of each group.
-    # 4-7: TaskSort(), now AreaSort
-    # 8: After all sorting if there are groups iwth more than 5 tasks, schedule those also using hybridScheduleNoGroup()
-    pass
+def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount):
+    # taskList is a list of task objects needed to be sorted
+    # rescueStartTime is a datetime.time object meaning the time 
+    # processorCount is an integer
+    # ProcessorResetTime represents ProcessorPrepTime, but I don't entirely understand what it's purpose is.
+    # My best guess and how I am impementing it is that each processor needs 30 minutes(defualt) to 'prep'
+    # As that preptime is unrelated to the acutal processes completing, the task object doesnt have knowledge of it, and only the processorTime dict sees its effects
+    
+    # Sort Tasks in  based by Priority
+    sortedTaskList = taskSort(taskList)
+    # Schedule processors
+    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount )
+    return sortedTaskList
+    
 
 
 #%%
@@ -287,7 +276,7 @@ def hybridSchedule(taskList, rescueStartTime, processorCount, processorResetTime
         # if any area has >5 tasks, sort them using taskSort
         # Personally, I might not even want this clause, maybe just sort all of em,
         if(len(areas[aID])>5):
-            print("Sorting tasks")
+            #print("Sorting tasks")
             sortedAreas.append(Area(taskSort(areas[aID]), avgPrio, burstTime))
         sortedAreas.append(Area(areas[aID], avgPrio, burstTime))
 
@@ -318,12 +307,23 @@ def foo():
     tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
     tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
     tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
-    #tasks.append(Task(6, dt.datetime(2000,1,2,20,30), dt.timedelta(minutes=10), 9, 3, 2))
-
+    #tasks.append(Task(6, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
+    #tasks.append(Task(7, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
+    #tasks.append(Task(8, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
+    #tasks.append(Task(9, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
+    #tasks.append(Task(10, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
     result = hybridSchedule(tasks, rescueStartTime, numberOfProcessors)
     for i in result:
         print(i)
         print(i.getProcessorInfo())
 foo()
 
+
 #%%
+
+
+
+#%%
+
+
+
