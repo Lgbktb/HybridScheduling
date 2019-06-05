@@ -326,6 +326,4 @@ def foo():
         print(i.getProcessorInfo())
 foo()
 
-#%% [markdown]
-# .
-
+#%%
