@@ -135,7 +135,7 @@ def areaSort(areas):
     trueEqual = []
     # Step 4: Sort by priority (high to low)
     if len(areas) > 1:
-        prioTuple = taskSort_helper(areas, lambda x:x.avgPriority)
+        prioTuple = taskSort_helper(areas, lambda x:x.arrivalTime)
         # Step 5: If same priority, sort by distance (low to high)
         if len(prioTuple[1]) > 1: # Length of equal priority items
             distTuple = taskSort_helper(prioTuple[1], lambda x:x.tasks[0].distance) # Assumes Equal distances, or at least that distances are closer to each other than to other tasks
@@ -164,6 +164,48 @@ def areaSort(areas):
     # Note that you want equal ^^^^^ not pivot
     else:  # You need to hande the part at the end of the recursion - when you only have one element in your array, just return the array.
         return areas
+
+
+#%%
+def prioritySort(areas):
+    # areas must be a 2d list of area objects; where 1 area is a list of tasks
+    # Returns list of tasks in specified sorted order 
+    prioTuple = ([],[],[])
+    arrivalTuple = ([],[],[])
+    trueEqual = []
+    # Step 1: Sort by priority (high to low)
+    if len(areas) > 1:
+        prioTuple = taskSort_helper(areas, lambda x:x.priority)
+        # Step 2: If same priority, sort by arrivalTime (low to high)
+        if len(prioTuple[1]) > 1: # Length of equal priority items
+            arrivalTuple = taskSort_helper(prioTuple[1], lambda x:x.arrivalTime) # Assumes Equal distances, or at least that distances are closer to each other than to other tasks
+            trueEqual = arrivalTuple[1]
+        else:
+            trueEqual = prioTuple[1]
+    
+        return prioritySort(prioTuple[2])+prioritySort(arrivalTuple[0])+trueEqual+prioritySort(arrivalTuple[2])+prioritySort(prioTuple[0])
+
+    # Note that you want equal ^^^^^ not pivot
+    else:  # You need to hande the part at the end of the recursion - when you only have one element in your array, just return the array.
+        return areas
+
+
+#%%
+def arrivalTimeSort(tasks):
+    # tasks must be a list of task objects
+    # Returns list of tasks in specified sorted order 
+    arrivalTuple = ([],[],[])
+    trueEqual = []
+    
+    # Step 1: sort by arrival Time
+    if len(tasks) > 1:
+        arrivalTuple = taskSort_helper(tasks, lambda x:x.arrivalTime)
+        trueEqual = arrivalTuple[1]
+        
+        return arrivalTimeSort(arrivalTuple[0])+trueEqual+arrivalTimeSort(arrivalTuple[2])
+    # Note that you want equal ^^^^^ not pivot
+    else:  # You need to hande the part at the end of the recursion - when you only have one element in your array, just return the array.
+        return tasks
 
 
 #%%
@@ -230,7 +272,7 @@ def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime
 
 
 #%%
-def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount):
+def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30)):
     # taskList is a list of task objects needed to be sorted
     # rescueStartTime is a datetime.time object meaning the time 
     # processorCount is an integer
@@ -241,7 +283,7 @@ def hybridScheduleNoGroup(taskList, rescueStartTime, processorCount):
     # Sort Tasks in  based by Priority
     sortedTaskList = taskSort(taskList)
     # Schedule processors
-    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount )
+    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime )
     return sortedTaskList
     
 
@@ -290,13 +332,61 @@ def hybridSchedule(taskList, rescueStartTime, processorCount, processorResetTime
             sortedTaskList.append(task)
             
     # Schedule processors 
-    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, grouping=True )
+    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime, grouping=True )
     
     return sortedTaskList
 
 
 #%%
-def foo():
+def firstComeSchedule(taskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30)):
+    
+    sortedTaskList = arrivalTimeSort(taskList)
+    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime)
+    return sortedTaskList
+
+def prioritySchedule(taskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30)):
+    
+    sortedTaskList = prioritySort(taskList)
+    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime)
+    return sortedTaskList
+
+
+#%%
+def fcfsExample():
+    rescueStartTime = dt.datetime(2000,1,1,10,40)
+    numberOfProcessors = 3
+    tasks =     [Task(1, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=30), 7, 5, 1)]
+    tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
+    tasks.append(Task(2, dt.datetime(2000,1,1,10,0), dt.timedelta(minutes=15), 7, 3, 2))
+    tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
+    tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
+    
+    result = firstComeSchedule(tasks, rescueStartTime, numberOfProcessors)
+    for i  in result:
+        print(i)
+        print(i.getProcessorInfo())
+fcfsExample()
+
+
+#%%
+def priorityExample():
+    rescueStartTime = dt.datetime(2000,1,1,10,40)
+    numberOfProcessors = 3
+    tasks =     [Task(1, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=30), 7, 5, 1)]
+    tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
+    tasks.append(Task(2, dt.datetime(2000,1,1,10,0), dt.timedelta(minutes=15), 7, 3, 2))
+    tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
+    tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
+    
+    result = prioritySchedule(tasks, rescueStartTime, numberOfProcessors)
+    for i  in result:
+        print(i)
+        print(i.getProcessorInfo())
+priorityExample()
+
+
+#%%
+def noGroupingExample():
     # 'main' funciton for this file
     # Runs the sample code given in paper (with date of jan 1, 2000)
     # Define sample input
@@ -307,16 +397,30 @@ def foo():
     tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
     tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
     tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
-    #tasks.append(Task(6, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
-    #tasks.append(Task(7, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
-    #tasks.append(Task(8, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
-    #tasks.append(Task(9, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
-    #tasks.append(Task(10, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 9, 3, 2))
+    result = hybridScheduleNoGroup(tasks, rescueStartTime, numberOfProcessors)
+    for i in result:
+        print(i)
+        print(i.getProcessorInfo())
+noGroupingExample()
+
+
+#%%
+def groupingExample():
+    # 'main' funciton for this file
+    # Runs the sample code given in paper (with date of jan 1, 2000)
+    # Define sample input
+    rescueStartTime = dt.datetime(2000,1,1,10,40)
+    numberOfProcessors = 3
+    tasks =     [Task(1, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=30), 7, 5, 1)]
+    tasks.append(Task(2, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=15), 7, 3, 2))
+    tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
+    tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
+    tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
     result = hybridSchedule(tasks, rescueStartTime, numberOfProcessors)
     for i in result:
         print(i)
         print(i.getProcessorInfo())
-foo()
+groupingExample()
 
 
 #%%
