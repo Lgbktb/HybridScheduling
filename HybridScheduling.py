@@ -8,9 +8,7 @@ import datetime as dt
 
 
 #%%
-class Task:
-    
-    
+class Task: 
     def __init__(self, tID, arrivalTime, burstTime, tasksPriority, distance, areaID):
         # arrivalTime is a datetime.datetime object
         # burstTime is a datetime.timedelta object
@@ -53,6 +51,14 @@ class Area:
         self.id = tasks[0].areaID
     def __str__(self):
         return str(self.tasks)
+    
+#class Processor:
+#    medic = False
+#    water = False
+#    def __init__(self, pID, medic=False, water=False):
+#        self.medic = medic
+#        self.water = water
+#        self.id = pID
 
 
 #%%
@@ -135,7 +141,7 @@ def areaSort(areas):
     trueEqual = []
     # Step 4: Sort by priority (high to low)
     if len(areas) > 1:
-        prioTuple = taskSort_helper(areas, lambda x:x.arrivalTime)
+        prioTuple = taskSort_helper(areas, lambda x:x.avgPriority)
         # Step 5: If same priority, sort by distance (low to high)
         if len(prioTuple[1]) > 1: # Length of equal priority items
             distTuple = taskSort_helper(prioTuple[1], lambda x:x.tasks[0].distance) # Assumes Equal distances, or at least that distances are closer to each other than to other tasks
@@ -144,7 +150,7 @@ def areaSort(areas):
                 tasksTuple = taskSort_helper(distTuple[1], lambda x:len(x.tasks))
                 # Step 7: If same number of tasks, sort by total burst time (low to high)
                 if len(burstTuple[1]) > 1: # Length of equal BurstTime items
-                    burstTuple = taskSort_helper(burstTuple[1], lambda x:x.arrivalTime)
+                    burstTuple = taskSort_helper(burstTuple[1], lambda x:x.tasks[0].arrivalTime)
                     trueEqual = burstTuple[1]
                 else:
                     trueEqual = tasksTuple[1]
@@ -167,15 +173,15 @@ def areaSort(areas):
 
 
 #%%
-def prioritySort(areas):
-    # areas must be a 2d list of area objects; where 1 area is a list of tasks
+def prioritySort(tasks):
+    # areas must be a 2d list of tasks objects; where 1 taskk is a list of tasks
     # Returns list of tasks in specified sorted order 
     prioTuple = ([],[],[])
     arrivalTuple = ([],[],[])
     trueEqual = []
     # Step 1: Sort by priority (high to low)
-    if len(areas) > 1:
-        prioTuple = taskSort_helper(areas, lambda x:x.priority)
+    if len(tasks) > 1:
+        prioTuple = taskSort_helper(tasks, lambda x:x.tasksPriority)
         # Step 2: If same priority, sort by arrivalTime (low to high)
         if len(prioTuple[1]) > 1: # Length of equal priority items
             arrivalTuple = taskSort_helper(prioTuple[1], lambda x:x.arrivalTime) # Assumes Equal distances, or at least that distances are closer to each other than to other tasks
@@ -187,7 +193,7 @@ def prioritySort(areas):
 
     # Note that you want equal ^^^^^ not pivot
     else:  # You need to hande the part at the end of the recursion - when you only have one element in your array, just return the array.
-        return areas
+        return tasks
 
 
 #%%
@@ -247,10 +253,10 @@ def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime
         i = soonestTime(processorTime)
         
         # Determines start time, either as soon as possible or as soon as task arrives
-        # Broken now
-        #timeUsed = processorTime[i] if processorTime[i] > task.arrivalTime else task.arrivalTime
-        task.setProcessor(i, processorTime[i])
-
+        # This mean inefficency if a task occurs that isn't occuring yet, the processor will wait until it arrives
+        timeUsed = processorTime[i] if processorTime[i] > task.arrivalTime else task.arrivalTime
+        task.setProcessor(i, timeUsed)
+        
         #print("task: "+str(task.tID) + "; proc: " + str(i))
         #print(processorTime)
     
@@ -370,13 +376,14 @@ fcfsExample()
 
 #%%
 def priorityExample():
-    rescueStartTime = dt.datetime(2000,1,1,10,40)
+    rescueStartTime = dt.datetime(2000,1,1,10,5)
     numberOfProcessors = 3
     tasks =     [Task(1, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=30), 7, 5, 1)]
     tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
     tasks.append(Task(2, dt.datetime(2000,1,1,10,0), dt.timedelta(minutes=15), 7, 3, 2))
     tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
     tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
+    tasks.append(Task(4, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
     
     result = prioritySchedule(tasks, rescueStartTime, numberOfProcessors)
     for i  in result:
@@ -421,13 +428,5 @@ def groupingExample():
         print(i)
         print(i.getProcessorInfo())
 groupingExample()
-
-
-#%%
-
-
-
-#%%
-
 
 
