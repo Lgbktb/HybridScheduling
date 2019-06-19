@@ -5,6 +5,8 @@
 
 #%%
 import datetime as dt
+import threading
+import copy
 
 
 #%%
@@ -19,6 +21,8 @@ class Task:
         self.tasksPriority = tasksPriority
         self.distance = distance
         self.areaID = areaID
+        
+        self.lock = threading.Lock()
         
     def __str__(self):
         return f'tID: {self.tID}; arrivalTime: ${self.arrivalTime}; burstTime: {self.burstTime}; tasksPriority: {self.tasksPriority} distance: {self.distance}; areaID: {self.areaID}'
@@ -52,13 +56,13 @@ class Area:
     def __str__(self):
         return str(self.tasks)
     
-#class Processor:
-#    medic = False
-#    water = False
-#    def __init__(self, pID, medic=False, water=False):
-#        self.medic = medic
-#        self.water = water
-#        self.id = pID
+class Processor:
+    def __init__(self, pID, name, startTime, medic=False, water=False):
+        self.thread = threading.Thread(name=name) 
+        self.time = startTime
+        self.medic = medic
+        self.water = water
+        self.id = pID
 
 
 #%%
@@ -215,66 +219,118 @@ def arrivalTimeSort(tasks):
 
 
 #%%
-def soonestTime(processorTime):
+def soonestTime(processors):
     # Used once in code, so doeen't need to be a function, but is a useful abstraction
     # Returns key of dict processorTime that is the soonest time 
-    soonest = 0
-    for key in processorTime:
-        if processorTime[key] < processorTime[soonest]:
-            soonest = key
+    soonest = processors[0]
+    for proc in processors:
+        if proc.time < soonest.time:
+            soonest = proc
     return soonest
+def isAvailable(task, processor):
+    #Determines if a task can be completed by processor
+    if task.arrivalTime > processor.time:
+        return False
+    return True
 
 
 #%%
+def singleProcessorSchedule(processor, unscheduledTasks, processorResetTime, grouping=False):
+    # Find First Task that each processor can acomplish
+        mytask = None
+        for task in unscheduledTasks:
+            if isAvailable(task, processor):
+                mytask = task
+                break
+        #Update Task Times, processors, etc
+        if mytask is not None:
+            unscheduledTasks.remove(mytask)
+            mytask.setProcessor(processor.id, processor.time)
+            print('Processor {} Took task {} at startTime{}'.format(processor.id, task.tID, task.startTime))
+            if grouping==False:
+                processor.time = mytask.completionTime+processorResetTime # only for single, not for grouping
+            else:
+                processor.time = mytask.completionTime
+        else:
+            print('Processor {} has no tasks to do at {}'.format(processor.id,processor.time))
+            processor.time += dt.timedelta(minutes=5)
+            
+def scheduleGroup(processor, unscheduledTaskGroups, processorResetTime):
+    # Find First Task that each processor can acomplish
+        mytasks = None
+        for group in unscheduledTaskGroups:
+            if isAvailable(group.tasks[0], processor):
+                mytasks = group
+                break
+        #Update Task Times, processors, etc
+        if mytasks is not None:
+            unscheduledTaskGroups.remove(mytasks)
+            
+            while(mytasks.tasks):
+                if mytasks.tasks:
+                    singleProcessorSchedule(processor, mytasks.tasks, processorResetTime, True)
+            processor.time += processorResetTime
+#             for task in mytasks.tasks:
+#                 if isAvailable(task, processor) : 
+#                     task.setProcessor(processor.id, processor.time)
+#                     print('Processor {} took task {} at startTime {}'.format(processor.id, task.tID, task.startTime))
+#                     processor.time = task.completionTime
+#                 else:
+#                     print('Processor {} cannot take task {}. This error is fatal. '.format(processor.id, task.tID))
+            #processor.time += processorResetTime
+        else:
+            print('Processor {} has no tasks to do at {}'.format(processor.id,processor.time))
+            processor.time += dt.timedelta(minutes=5)
 
+
+#%%
 def schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime=dt.timedelta(minutes=30), grouping=False):
     
     # Assign each task to a processor
     # First Come First Serve (now that tasks are sorted)
-    # ProcessorTime is a dictionary mapping each processor (labeled 0 to processorcount-1) to it's earliest free time
-    processorTime = {}
+    # Processors is a list of processor objects 
+    processors = []
     for i in range(processorCount):
-        processorTime[i] = rescueStartTime 
-    
-    totalWaitingTime = dt.timedelta(0)
-    totalTurnaroundTime = dt.timedelta(0)
-    prevTask = ''
-    for task in sortedTaskList:
-        # Update time for new tasks
-        if prevTask != '':
-            if grouping and task.areaID == prevTask.areaID:
-                # If there is grouping, and the previous task was in the same group, we don't need prep/reset time
-                # Do we need the 'if grouping?', if they are in the same group, then no reset time should be required, no matter what
-                processorTime[prevTask.processorID] = prevTask.completionTime
-            else: # The next task requires reset time 
-                processorTime[prevTask.processorID] = prevTask.completionTime+processorResetTime
+        processors.append(Processor(i, 'p'+str(i), rescueStartTime))
+        
+    unscheduledTasks = copy.copy(sortedTaskList)
+    if not grouping :
+        while(unscheduledTasks):
+            processor = soonestTime(processors)
+            if unscheduledTasks:
+                singleProcessorSchedule(processor, unscheduledTasks, processorResetTime)
+    else: #if grouping:
+        # Go from sorting based on areas to based on tasks
+        taskList = []
+        for area in sortedTaskList:
+            for task in area.tasks:
+                taskList.append(task)
+        print(taskList)
+        
+        # Sorted Task List and unscheduled Tasks are now groups, not tasks
+        while(unscheduledTasks):
+            processor = soonestTime(processors)
+            if unscheduledTasks:
+                scheduleGroup(processor, unscheduledTasks, processorResetTime)
+        
 
-        # i represents the processor that will act the soonest
-        i = soonestTime(processorTime)
         
-        # Determines start time, either as soon as possible or as soon as task arrives
-        # This mean inefficency if a task occurs that isn't occuring yet, the processor will wait until it arrives
-        timeUsed = processorTime[i] if processorTime[i] > task.arrivalTime else task.arrivalTime
-        task.setProcessor(i, timeUsed)
-        
-        #print("task: "+str(task.tID) + "; proc: " + str(i))
-        #print(processorTime)
     
-        # Calculate totalWaitingTime
-        totalWaitingTime += task.waitingTime 
-        # Calculate totalTurnaroundTime
+    totalWaitingTime = dt.timedelta()
+    totalTurnaroundTime = dt.timedelta()
+    for task in taskList:
+        totalWaitingTime += task.waitingTime
         totalTurnaroundTime += task.turnaroundTime
         
-        prevTask = task
     print("totalWaitingTime: "+str(totalWaitingTime))
     # Calculate AverageWaitingTime
-    averageWaitingTime = totalWaitingTime / len(sortedTaskList)
+    averageWaitingTime = totalWaitingTime / len(taskList)
     print("averageWaitingTime: "+str(averageWaitingTime))
     print("totalTurnaroundTime: "+str(totalTurnaroundTime))
     # Calculate averageTurnaroundTime
-    averageTurnaroundTime = totalTurnaroundTime / len(sortedTaskList)
+    averageTurnaroundTime = totalTurnaroundTime / len(taskList)
     print("averageTurnaroundTime: "+str(averageTurnaroundTime))
-    return sortedTaskList
+    return taskList
 
 
 #%%
@@ -330,15 +386,15 @@ def hybridSchedule(taskList, rescueStartTime, processorCount, processorResetTime
 
     # Sort Areas
     sortedAreas = areaSort(sortedAreas)
-    
-    sortedTaskList = []
-    # Go from sorting based on areas to based on tasks
-    for area in sortedAreas:
-        for task in area.tasks:
-            sortedTaskList.append(task)
+    sortedTaskList = schedule(sortedAreas, rescueStartTime, processorCount, processorResetTime, grouping=True )
+#     sortedTaskList = []
+#     # Go from sorting based on areas to based on tasks
+#     for area in sortedAreas:
+#         for task in area.tasks:
+#             sortedTaskList.append(task)
             
     # Schedule processors 
-    sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime, grouping=True )
+    #sortedTaskList = schedule(sortedTaskList, rescueStartTime, processorCount, processorResetTime, grouping=True )
     
     return sortedTaskList
 
@@ -359,7 +415,7 @@ def prioritySchedule(taskList, rescueStartTime, processorCount, processorResetTi
 
 #%%
 def fcfsExample():
-    rescueStartTime = dt.datetime(2000,1,1,10,40)
+    rescueStartTime = dt.datetime(2000,1,1,10,5)
     numberOfProcessors = 3
     tasks =     [Task(1, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=30), 7, 5, 1)]
     tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
@@ -383,7 +439,7 @@ def priorityExample():
     tasks.append(Task(2, dt.datetime(2000,1,1,10,0), dt.timedelta(minutes=15), 7, 3, 2))
     tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
     tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
-    tasks.append(Task(4, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
+    tasks.append(Task(6, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
     
     result = prioritySchedule(tasks, rescueStartTime, numberOfProcessors)
     for i  in result:
@@ -423,10 +479,16 @@ def groupingExample():
     tasks.append(Task(3, dt.datetime(2000,1,1,10,00), dt.timedelta(minutes=40), 5, 7, 3))
     tasks.append(Task(4, dt.datetime(2000,1,1,10,15), dt.timedelta(minutes=35), 8, 2, 4))
     tasks.append(Task(5, dt.datetime(2000,1,1,10,30), dt.timedelta(minutes=10), 4, 3, 2))
+    tasks.append(Task(6, dt.datetime(2000,1,1,11,40), dt.timedelta(minutes=10), 4, 3, 3))
+
     result = hybridSchedule(tasks, rescueStartTime, numberOfProcessors)
     for i in result:
         print(i)
         print(i.getProcessorInfo())
 groupingExample()
+
+
+#%%
+
 
 
